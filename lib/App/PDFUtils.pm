@@ -87,7 +87,6 @@ sub add_pdf_password {
                 $envres->add_result(500, $stderr, {item_id=>$f});
                 next FILE;
             }
-        }
 
       BACKUP:
         {
@@ -222,8 +221,5 @@ This distribution provides tha following command-line utilities related to PDF
 files:
 
 #INSERT_EXECS_LIST
-
-
-=head1 SEE ALSO
 
 =cut

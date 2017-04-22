@@ -6,6 +6,7 @@ package App::PDFUtils;
 use 5.010001;
 use strict;
 use warnings;
+#use Log::Any '$log';
 
 use Perinci::Object;
 
@@ -181,13 +182,16 @@ sub remove_pdf_password {
                 "qpdf", "--password=$p", "--decrypt", $f, $tempf);
             my $err = $?;# ? Proc::ChildError::explain_child_error() : '';
             if ($err && $stderr =~ /: invalid password$/) {
+                #$log->tracef("D1");
                 unlink $tempf; # just to make sure
                 next PASSWORD;
             } elsif ($err) {
+                #$log->tracef("D2");
                 $stderr =~ s/\R//g;
                 $envres->add_result(500, $stderr, {item_id=>$f});
                 next FILE;
             }
+            last;
         }
         unless (-f $tempf) {
             $envres->add_result(412, "No passwords can be successfully used on $f", {item_id=>$f});

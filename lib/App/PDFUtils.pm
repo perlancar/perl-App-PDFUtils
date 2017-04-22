@@ -78,15 +78,15 @@ sub add_pdf_password {
         IPC::System::Options::system(
             {log => 1, capture_stdout => \$stdout, capture_stderr => \$stderr},
             "qpdf", "--encrypt", $args{password}, $args{password}, 128, "--", $f, $tempf);
-            my $err = $?;# ? Proc::ChildError::explain_child_error() : '';
-            if ($err && $stderr =~ /: invalid password$/) {
-                $envres->add_result(412, "File already encrypted", {item_id=>$f});
-                next FILE;
-            } elsif ($err) {
-                $stderr =~ s/\R//g;
-                $envres->add_result(500, $stderr, {item_id=>$f});
-                next FILE;
-            }
+        my $err = $?;# ? Proc::ChildError::explain_child_error() : '';
+        if ($err && $stderr =~ /: invalid password$/) {
+            $envres->add_result(412, "File already encrypted", {item_id=>$f});
+            next FILE;
+        } elsif ($err) {
+            $stderr =~ s/\R//g;
+            $envres->add_result(500, $stderr, {item_id=>$f});
+            next FILE;
+        }
 
       BACKUP:
         {

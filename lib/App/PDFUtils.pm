@@ -180,7 +180,7 @@ sub remove_pdf_password {
         for my $p (@{ $args{passwords} }) {
             my ($stdout, $stderr);
             IPC::System::Options::system(
-                {log => 1, capture_stdout => \$stdout, capture_stderr => \$stderr},
+                {log => 1, fail_log_level => 'info', capture_stdout => \$stdout, capture_stderr => \$stderr},
                 "qpdf", "--password=$p", "--decrypt", $f, $tempf);
             my $err = $?;# ? Proc::ChildError::explain_child_error() : '';
             if ($err && $stderr =~ /: invalid password$/) {

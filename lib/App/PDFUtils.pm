@@ -228,4 +228,9 @@ files:
 
 #INSERT_EXECS_LIST
 
+
+=head1 SEE ALSO
+
+L<diff-pdf-text> from L<App::DiffPDFText>.
+
 =cut

@@ -14,15 +14,54 @@ use Perinci::Object;
 
 our %SPEC;
 
-my %arg_files = (
+my %argspec0_files = (
     files => {
         schema => ['array*', of=>'filename*', min_len=>1,
                    #uniq=>1, # not yet implemented by Data::Sah
                ],
         req => 1,
         pos => 0,
-        greedy => 1,
+        slurpy => 1,
+        'x.element_completion' => [filename => {filter => sub { /\.pdf$/i }}],
+    },
+);
+
+our %argspec0_file = (
+    file => {
+        summary => 'Input file',
+        schema => ['filename*'],
+        req => 1,
+        pos => 0,
         'x.completion' => [filename => {filter => sub { /\.pdf$/i }}],
+    },
+);
+
+our %argspecopt1_output = (
+    output => {
+        summary => 'Output path',
+        schema => ['filename*'],
+        pos => 1,
+    },
+);
+
+our %argspecopt_overwrite = (
+    overwrite => {
+        schema => 'bool*',
+        cmdline_aliases => {O=>{}},
+    },
+);
+
+our %argspecopt_return_output_file = (
+    return_output_file => {
+        summary => 'Return the path of output file instead',
+        schema => 'bool*',
+        description => <<'_',
+
+This is useful when you do not specify an output file but do not want to show
+the converted document to stdout, but instead want to get the path to a
+temporary output file.
+
+_
     },
 );
 
@@ -36,7 +75,7 @@ This program is a wrapper for <prog:qpdf> to password-protect PDF files
 
 _
     args => {
-        %arg_files,
+        %argspec0_files,
         password => {
             schema => ['str*', min_len=>1],
             req => 1,
@@ -128,17 +167,17 @@ use PGP-encrypted email, but I digress.)
 You can provide the passwords to be tried in a configuration file,
 `~/remove-pdf-password.conf`, e.g.:
 
- passwords = pass1
- passwords = pass2
- passwords = pass3
+    passwords = pass1
+    passwords = pass2
+    passwords = pass3
 
 or:
 
- passwords = ["pass1", "pass2", "pass3"]
+    passwords = ["pass1", "pass2", "pass3"]
 
 _
     args => {
-        %arg_files,
+        %argspec0_files,
         passwords => {
             schema => ['array*', of=>['str*', min_len=>1], min_len=>1],
         },
@@ -216,6 +255,97 @@ sub remove_pdf_password {
     }
 
     $envres->as_struct;
+}
+
+$SPEC{convert_pdf_to_text} = {
+    v => 1.1,
+    summary => 'Convert PDF file to text',
+    description => <<'_',
+
+This utility uses one of the following backends:
+
+* pdftotext
+
+_
+    args => {
+        %argspec0_file,
+        %argspecopt1_output,
+        %argspecopt_overwrite,
+        %argspecopt_return_output_file,
+        fmt => {
+            summary => 'Run Unix fmt over the txt output',
+            schema => 'bool*',
+        },
+    },
+};
+sub convert_pdf_to_text {
+    my %args = @_;
+
+    require File::Copy;
+    require File::Temp;
+    require File::Temp::MoreUtils;
+    require File::Which;
+    require IPC::System::Options;
+
+  USE_PDFTOTEXT: {
+        File::Which::which("pdftotext") or do {
+            log_debug "pdftotext is not in PATH, skipped trying to use pdftotext";
+            last;
+        };
+
+        my $input_file = $args{file};
+        $input_file =~ /(.+)\.(\w+)\z/ or return [412, "Please supply input file with extension in its name (e.g. foo.pdf instead of foo)"];
+        my ($name, $ext) = ($1, $2);
+        $ext =~ /\Ate?xt\z/i and return [304, "Input file '$input_file' is already text"];
+        my $output_file = $args{output};
+
+        if (defined $output_file && -e $output_file && !$args{overwrite}) {
+            return [412, "Output file '$output_file' already exists, not overwriting (use --overwrite (-O) to overwrite)"];
+        }
+
+        my $tempdir = File::Temp::tempdir(CLEANUP => !$args{return_output_file});
+        my ($temp_fh, $temp_file)      = File::Temp::MoreUtils::tempfile_named(name=>$input_file, dir=>$tempdir);
+        (my $temp_out_file = $temp_file) =~ s/\.\w+\z/.txt/;
+        File::Copy::copy($input_file, $temp_file) or do {
+            return [500, "Can't copy '$input_file' to '$temp_file': $!"];
+        };
+        IPC::System::Options::system(
+            {die=>1, log=>1},
+            "pdftotext", $temp_file, $temp_out_file);
+
+      FMT: {
+            last unless $args{fmt};
+            return [412, "fmt is not in PATH"] unless File::Which::which("fmt");
+            my $stdout;
+            IPC::System::Options::system(
+                {die=>1, log=>1, capture_stdout=>\$stdout},
+                "fmt", $temp_out_file,
+            );
+            open my $fh, ">" , "$temp_out_file.fmt" or return [500, "Can't open '$temp_out_file.fmt': $!"];
+            print $fh $stdout;
+            close $fh;
+            $temp_out_file .= ".fmt";
+        }
+
+        if (defined $output_file || $args{return_output_file}) {
+            if (defined $output_file) {
+                File::Copy::copy($temp_out_file, $output_file) or do {
+                    return [500, "Can't copy '$temp_out_file' to '$output_file': $!"];
+                };
+            } else {
+                $output_file = $temp_out_file;
+            }
+            return [200, "OK", $args{return_output_file} ? $output_file : undef];
+        } else {
+            open my $fh, "<", $temp_out_file or return [500, "Can't open '$temp_out_file': $!"];
+            local $/;
+            my $content = <$fh>;
+            close $fh;
+            return [200, "OK", $content, {"cmdline.skip_format"=>1}];
+        }
+    }
+
+    [412, "No backend available"];
 }
 
 1;

@@ -1,3 +1,8 @@
+0.006   2021-07-13  Released-By: PERLANCAR; Urgency: medium
+
+	- Add function: convert_pdf_to_text().
+
+
 0.005   2021-07-05  Released-By: PERLANCAR; Urgency: medium
 
 	- Add utility: pdfgrep (with alias: grep-from-pdf).

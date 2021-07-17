@@ -272,6 +272,10 @@ _
         %argspecopt1_output,
         %argspecopt_overwrite,
         %argspecopt_return_output_file,
+        pages => {
+            summary => 'Only convert a range of pages',
+            schema => 'uint_range*',
+        },
         fmt => {
             summary => 'Run Unix fmt over the txt output',
             schema => 'bool*',
@@ -306,9 +310,24 @@ sub convert_pdf_to_text {
         my $tempdir = File::Temp::tempdir(CLEANUP => !$args{return_output_file});
         my ($temp_fh, $temp_file)      = File::Temp::MoreUtils::tempfile_named(name=>$input_file, dir=>$tempdir);
         (my $temp_out_file = $temp_file) =~ s/\.\w+\z/.txt/;
-        File::Copy::copy($input_file, $temp_file) or do {
-            return [500, "Can't copy '$input_file' to '$temp_file': $!"];
-        };
+
+        if (defined $args{pages}) {
+            File::Which::which("pdftk")
+                  or return [412, "pdftk is required to extract page range from PDF"];
+            IPC::System::Options::system(
+                {die=>1, log=>1},
+                "pdftk", $input_file, "cat", $args{pages}, "output", $temp_file);
+        } else {
+            File::Copy::copy($input_file, $temp_file) or do {
+                return [500, "Can't copy '$input_file' to '$temp_file': $!"];
+            };
+        }
+
+      EXTRACT_PAGE_RANGE: {
+            last unless defined $args{pages};
+
+        }
+
         IPC::System::Options::system(
             {die=>1, log=>1},
             "pdftotext", $temp_file, $temp_out_file);

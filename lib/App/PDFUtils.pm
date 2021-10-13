@@ -294,7 +294,7 @@ sub pdf_has_password {
     [200, "OK",
      $args{quiet} ? "" : ($has_password ? "PDF has password" : defined($has_password) ? "PDF DOES NOT have password" : "CANNOT determine if PDF has password"),
      {
-         'cmdline.exit_code' => $has_password ? 0 : defined($has_password} ? 1 : 2,
+         'cmdline.exit_code' => $has_password ? 0 : defined($has_password) ? 1 : 2,
      }];
 }
 

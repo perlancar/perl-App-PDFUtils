@@ -1,16 +1,16 @@
 package App::PDFUtils;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010001;
 use strict;
 use warnings;
 use Log::ger;
 
 use Perinci::Object;
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 our %SPEC;
 
@@ -33,6 +33,13 @@ our %argspec0_file = (
         req => 1,
         pos => 0,
         'x.completion' => [filename => {filter => sub { /\.pdf$/i }}],
+    },
+);
+
+our %argspecopt_quiet = (
+    quiet => {
+        schema => ['bool*'],
+        cmdline_aliases => {q=>{}},
     },
 );
 
@@ -255,6 +262,40 @@ sub remove_pdf_password {
     }
 
     $envres->as_struct;
+}
+
+$SPEC{pdf_has_password} = {
+    v => 1.1,
+    summary => 'Check if PDF file has password',
+    args => {
+        %argspec0_file,
+        %argspecopt_quiet,
+    },
+    deps => {
+        prog => 'qpdf',
+    },
+};
+sub pdf_has_password {
+    require IPC::System::Options;
+
+    my %args = @_;
+
+    my ($stdout, $stderr);
+    IPC::System::Options::system(
+        {log => 1, fail_log_level => 'info', capture_stdout => \$stdout, capture_stderr => \$stderr},
+        "qpdf", "--check", $args{file});
+    my $has_password;
+    if ($? && $stderr =~ /: invalid password/) {
+        $has_password = 1;
+    } elsif (!$? && $stdout =~ /is not encrypted/) {
+        $has_password = 0;
+    }
+
+    [200, "OK",
+     $args{quiet} ? "" : ($has_password ? "PDF has password" : defined($has_password) ? "PDF DOES NOT have password" : "CANNOT determine if PDF has password"),
+     {
+         'cmdline.exit_code' => $has_password ? 0 : defined($has_password} ? 1 : 2,
+     }];
 }
 
 $SPEC{convert_pdf_to_text} = {

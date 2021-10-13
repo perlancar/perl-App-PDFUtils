@@ -408,6 +408,101 @@ sub convert_pdf_to_text {
     [412, "No backend available"];
 }
 
+$SPEC{compress_pdf} = {
+    v => 1.1,
+    summary => 'Make PDF smaller',
+    description => <<'_',
+
+This utility is a wrapper for <prog:gs> (GhostScript) and is equivalent to the
+following command:
+
+    % gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/screen -dNOPAUSE -dQUIET -dBATCH -sOutputFile=output.pdf input.pdf
+
+with support for multiple files and output files automatically named
+`INPUT.compressed.pdf`.
+
+_
+    args => {
+        %argspec0_files,
+        %argspecopt_overwrite,
+        setting => {
+            schema => ['str*', {
+                in => [
+                    'screen',
+                    'ebook',
+                    'prepress',
+                    'printer',
+                    'default',
+                ],
+                'x.in.summaries' => [
+                    'Has a lower quality and smaller size (72 dpi)',
+                    'Has a better quality, but has a slightly larger size (150 dpi)',
+                    'Output is of a higher size and quality (300 dpi)',
+                    'Output is of a printer type quality (300 dpi)',
+                    'Selects the output which is useful for multiple purposes, can cause large PDFS',
+                ],
+            }],
+            default => 'ebook',
+            cmdline_aliases => {s=>{}},
+        },
+    },
+    examples => [
+        {
+            summary => 'Compress foo.pdf into foo.compressed.pdf using default setting (ebook - 150dpi)',
+            test => 0,
+            src => '[[prog]] foo.pdf',
+            src_plang => 'bash',
+            'x.doc.show_result' => 0,
+        },
+        {
+            summary => 'Compress two files with more extreme compression (screen - 72dpi), overwrite existing output',
+            test => 0,
+            src => '[[prog]] -O -s screen foo.pdf bar.pdf',
+            src_plang => 'bash',
+            'x.doc.show_result' => 0,
+        },
+    ],
+    deps => {
+        prog => 'gs',
+    },
+};
+sub compress_pdf {
+    require IPC::System::Options;
+
+    my %args = @_;
+
+    my $envres = envresmulti();
+
+  FILE:
+    for my $f (@{ $args{files} }) {
+        unless (-f $f) {
+            $envres->add_result(404, "File not found", {item_id=>$f});
+            next FILE;
+        }
+        my $outputf = $f;
+        $outputf =~ s/\.(pdf)\z/.compressed.$1/i or do {
+            $envres->add_result(500, "Cannot determine output filename", {item_id=>$f});
+            next FILE;
+        };
+        if ((-f $outputf) && !$args{overwrite}) {
+            $envres->add_result(412, "Won't overwrite existing output $outputf", {item_id=>$f});
+            next FILE;
+        }
+
+        IPC::System::Options::system(
+            {log => 1},
+            "gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4", "-dPDFSETTINGS=/$args{setting}", "-dNOPAUSE", "-dQUIET", "-dBATCH", "-sOutputFile=$outputf", $f,
+        );
+        if ($?) {
+            $envres->add_result(500, "Failed", {item_id=>$f});
+        } else {
+            $envres->add_result(200, "OK", {item_id=>$f});
+        }
+    }
+
+    $envres->as_struct;
+}
+
 1;
 # ABSTRACT: Command-line utilities related to PDF files
 

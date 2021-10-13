@@ -1,3 +1,8 @@
+0.009   2021-10-13  Released-By: PERLANCAR; Urgency: medium
+
+	- Add CLI: compress-pdf.
+
+
 0.008   2021-10-13  Released-By: PERLANCAR; Urgency: medium
 
 	- Add CLI: pdf-has-password.

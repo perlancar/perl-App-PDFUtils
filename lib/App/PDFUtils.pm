@@ -1,16 +1,16 @@
 package App::PDFUtils;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010001;
 use strict;
 use warnings;
 use Log::ger;
 
 use Perinci::Object;
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 our %SPEC;
 
@@ -33,6 +33,13 @@ our %argspec0_file = (
         req => 1,
         pos => 0,
         'x.completion' => [filename => {filter => sub { /\.pdf$/i }}],
+    },
+);
+
+our %argspecopt_quiet = (
+    quiet => {
+        schema => ['bool*'],
+        cmdline_aliases => {q=>{}},
     },
 );
 
@@ -257,6 +264,40 @@ sub remove_pdf_password {
     $envres->as_struct;
 }
 
+$SPEC{pdf_has_password} = {
+    v => 1.1,
+    summary => 'Check if PDF file has password',
+    args => {
+        %argspec0_file,
+        %argspecopt_quiet,
+    },
+    deps => {
+        prog => 'qpdf',
+    },
+};
+sub pdf_has_password {
+    require IPC::System::Options;
+
+    my %args = @_;
+
+    my ($stdout, $stderr);
+    IPC::System::Options::system(
+        {log => 1, fail_log_level => 'info', capture_stdout => \$stdout, capture_stderr => \$stderr},
+        "qpdf", "--check", $args{file});
+    my $has_password;
+    if ($? && $stderr =~ /: invalid password/) {
+        $has_password = 1;
+    } elsif (!$? && $stdout =~ /is not encrypted/) {
+        $has_password = 0;
+    }
+
+    [200, "OK",
+     $args{quiet} ? "" : ($has_password ? "PDF has password" : defined($has_password) ? "PDF DOES NOT have password" : "CANNOT determine if PDF has password"),
+     {
+         'cmdline.exit_code' => $has_password ? 0 : defined($has_password) ? 1 : 2,
+     }];
+}
+
 $SPEC{convert_pdf_to_text} = {
     v => 1.1,
     summary => 'Convert PDF file to text',
@@ -365,6 +406,101 @@ sub convert_pdf_to_text {
     }
 
     [412, "No backend available"];
+}
+
+$SPEC{compress_pdf} = {
+    v => 1.1,
+    summary => 'Make PDF smaller',
+    description => <<'_',
+
+This utility is a wrapper for <prog:gs> (GhostScript) and is equivalent to the
+following command:
+
+    % gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/screen -dNOPAUSE -dQUIET -dBATCH -sOutputFile=output.pdf input.pdf
+
+with support for multiple files and output files automatically named
+`INPUT.compressed.pdf`.
+
+_
+    args => {
+        %argspec0_files,
+        %argspecopt_overwrite,
+        setting => {
+            schema => ['str*', {
+                in => [
+                    'screen',
+                    'ebook',
+                    'prepress',
+                    'printer',
+                    'default',
+                ],
+                'x.in.summaries' => [
+                    'Has a lower quality and smaller size (72 dpi)',
+                    'Has a better quality, but has a slightly larger size (150 dpi)',
+                    'Output is of a higher size and quality (300 dpi)',
+                    'Output is of a printer type quality (300 dpi)',
+                    'Selects the output which is useful for multiple purposes, can cause large PDFS',
+                ],
+            }],
+            default => 'ebook',
+            cmdline_aliases => {s=>{}},
+        },
+    },
+    examples => [
+        {
+            summary => 'Compress foo.pdf into foo.compressed.pdf using default setting (ebook - 150dpi)',
+            test => 0,
+            src => '[[prog]] foo.pdf',
+            src_plang => 'bash',
+            'x.doc.show_result' => 0,
+        },
+        {
+            summary => 'Compress two files with more extreme compression (screen - 72dpi), overwrite existing output',
+            test => 0,
+            src => '[[prog]] -O -s screen foo.pdf bar.pdf',
+            src_plang => 'bash',
+            'x.doc.show_result' => 0,
+        },
+    ],
+    deps => {
+        prog => 'gs',
+    },
+};
+sub compress_pdf {
+    require IPC::System::Options;
+
+    my %args = @_;
+
+    my $envres = envresmulti();
+
+  FILE:
+    for my $f (@{ $args{files} }) {
+        unless (-f $f) {
+            $envres->add_result(404, "File not found", {item_id=>$f});
+            next FILE;
+        }
+        my $outputf = $f;
+        $outputf =~ s/\.(pdf)\z/.compressed.$1/i or do {
+            $envres->add_result(500, "Cannot determine output filename", {item_id=>$f});
+            next FILE;
+        };
+        if ((-f $outputf) && !$args{overwrite}) {
+            $envres->add_result(412, "Won't overwrite existing output $outputf", {item_id=>$f});
+            next FILE;
+        }
+
+        IPC::System::Options::system(
+            {log => 1},
+            "gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4", "-dPDFSETTINGS=/$args{setting}", "-dNOPAUSE", "-dQUIET", "-dBATCH", "-sOutputFile=$outputf", $f,
+        );
+        if ($?) {
+            $envres->add_result(500, "Failed", {item_id=>$f});
+        } else {
+            $envres->add_result(200, "OK", {item_id=>$f});
+        }
+    }
+
+    $envres->as_struct;
 }
 
 1;

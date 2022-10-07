@@ -321,6 +321,10 @@ _
             summary => 'Run Unix fmt over the txt output',
             schema => 'bool*',
         },
+        raw => {
+            summary => 'If set to true, will run pdftotext with -raw option',
+            schema => 'bool*',
+        },
     },
 };
 sub convert_pdf_to_text {
@@ -371,7 +375,8 @@ sub convert_pdf_to_text {
 
         IPC::System::Options::system(
             {die=>1, log=>1},
-            "pdftotext", $temp_file, $temp_out_file);
+            "pdftotext", ($args{raw} ? ("-raw") : ()),
+            $temp_file, $temp_out_file);
 
       FMT: {
             last unless $args{fmt};

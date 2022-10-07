@@ -84,7 +84,7 @@ IPC::System::Options::system(
 
 Use like you would use the Unix command B<less>:
 
- % less-pdf-text [options] <PDF_FILE1>...
+ % less-pdf-text [options] <PDF_FILE>...
 
 
 =head1 DESCRIPTION

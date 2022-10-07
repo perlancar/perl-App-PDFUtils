@@ -1,3 +1,9 @@
+0.013   2022-10-07  Released-By: PERLANCAR; Urgency: medium
+
+        - [cli less-pdf-text] Switch to
+          CLI::MetaUtil::Getopt::Long::Complete.
+
+
 0.012   2022-10-07  Released-By: PERLANCAR; Urgency: medium
 
         - Add CLI: less-pdf-text.

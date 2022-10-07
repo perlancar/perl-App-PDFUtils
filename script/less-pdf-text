@@ -29,7 +29,7 @@ GetOptionsCLIWrapper(
     cli => 'less',
     add_opts => {
         'pdf-pages=s' => \$opt_pages,
-        'pdf-raw=s' => \$opt_raw,
+        'pdf-raw' => \$opt_raw,
         '<>' => sub {
             my $arg = shift;
             if ($arg =~ /\A\+/) {

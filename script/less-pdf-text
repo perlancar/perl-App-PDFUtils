@@ -1,0 +1,129 @@
+#!perl
+
+use 5.010001;
+use strict;
+use warnings;
+use Log::ger;
+#use Log::ger::Screen;
+
+use File::chdir;
+use File::Slurper qw(read_binary);
+use File::Temp qw(tempdir);
+use File::Which qw(which);
+use CLI::MetaUtil::Getopt::Long qw(GetOptionsCLIWrapper);
+use IPC::System::Options 'system', -log=>1, -die=>1;
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
+
+my @files;
+Getopt::Long::Configure("gnu_getopt", "no_ignore_case", "pass_through");
+
+my $fail;
+my ($opt_pages, $opt_raw);
+
+GetOptionsCLIWrapper(
+    cli => 'less',
+    add_opts => {
+        'pdf-pages=s' => \$opt_pages,
+        'pdf-raw=s' => \$opt_raw,
+        '<>' => sub {
+            my $arg = shift;
+            if ($arg =~ /\A\+/) {
+                # less command, push to original command's arguments
+                goto PUSH;
+            }
+
+            my $filename = $arg;
+            unless (-f $filename) {
+                warn "less-pdf-text: No such file or not a file: '$filename'\n";
+                $fail++;
+                return;
+            }
+
+            require App::PDFUtils;
+            my $res = App::PDFUtils::convert_pdf_to_text(
+                file => $filename,
+                fmt => 0,
+                return_output_file => 1,
+                raw => $opt_raw,
+                (defined $opt_pages ? (pages => $opt_pages) : ()),
+            );
+            my $file;
+            if ($res->[0] == 304) {
+                $file = $_[0];
+            } elsif ($res->[0] == 200) {
+                $file = $res->[2];
+            } else {
+                die "Can't convert PDF '$_[0]' to text: $res->[0] - $res->[1]";
+            }
+            $arg = $file;
+
+          PUSH:
+            push @CLI::MetaUtil::Getopt::Long::cli_argv, $arg;
+        },
+    },
+);
+
+exit 1 if $fail;
+
+require File::Which;
+
+require IPC::System::Options;
+IPC::System::Options::system(
+    {log=>1},
+    "less", @ARGV,
+);
+
+# ABSTRACT: Less for seeing plaintext of PDF files
+# PODNAME:
+
+=head1 SYNOPSIS
+
+Use like you would use the Unix command B<less>:
+
+ % less-pdf-text [options] <PDF_FILE1>...
+
+
+=head1 DESCRIPTION
+
+This is a wrapper for the Unix command B<less>. It assumes that each input file
+is a PDF file and tries to convert the file to text first using B<pdftotext> CLI
+utility first before passing it to C<less>.
+
+
+=head1 OPTIONS
+
+These are options that are interpreted by B<less-pdf-text> and not passed to
+B<less>.
+
+B<Please specify these options before file names.>
+
+=over
+
+=item * --pdf-pages
+
+Only diff a range of pages instead of the whole PDF. Example: 1,5-10,15.
+Requires B<pdftk> to extract the page range.
+
+=item * --pdf-raw
+
+If set, then C<pdftext> command will be run using the C<-raw> option.
+
+=back
+
+
+=head1 ENVIRONMENT
+
+=head2 DEBUG
+
+If set to true, do not cleanup temporary directories.
+
+
+=head1 SEE ALSO
+
+Unix command B<less>.
+
+B<pdftotext> utility.

@@ -78,7 +78,11 @@ $SPEC{add_pdf_password} = {
     description => <<'MARKDOWN',
 
 This program is a wrapper for <prog:qpdf> to password-protect PDF files
-(in-place). This is the counterpart for <prog:remove-pdf-password>.
+(in-place). This is the counterpart for <prog:remove-pdf-password>. Why use this
+wrapper instead of **qpdf** directly? This wrapper offers configuration file
+support, where you can put the password(s) you want to use there. The wrapper
+also offers multiple file support and additional options, e.g. whether to create
+backup.
 
 MARKDOWN
     args => {
@@ -163,13 +167,18 @@ $SPEC{remove_pdf_password} = {
 This program is a wrapper for <prog:qpdf> to remove passwords from PDF files
 (in-place).
 
-The motivation for this program is the increasing occurence of financial
+The motivation for this wrapper is the increasing occurence of financial
 institutions sending financial statements or documents in the format of
 password-protected PDF file. This is annoying when we want to archive the file
 or use it in an organization because we have to remember different passwords for
 different financial institutions and re-enter the password everytime we want to
 use the file. (The banks could've sent the PDF in a password-protected .zip, or
 use PGP-encrypted email, but I digress.)
+
+Compared to using **qpdf** directly, this wrapper offers some additional
+features/options and convenience, for example: multiple file support, multiple
+password matching attempt, configuration file, option whether you want backup,
+etc.
 
 You can provide the passwords to be tried in a configuration file,
 `~/remove-pdf-password.conf`, e.g.:
@@ -267,6 +276,12 @@ sub remove_pdf_password {
 $SPEC{pdf_has_password} = {
     v => 1.1,
     summary => 'Check if PDF file has password',
+    description => <<'MARKDOWN',
+
+This is a wrapper for `qpdf --check`. The wrapper offers additional options like
+`--quiet``.
+
+MARKDOWN
     args => {
         %argspec0_file,
         %argspecopt_quiet,
@@ -306,6 +321,12 @@ $SPEC{convert_pdf_to_text} = {
 This utility uses one of the following backends:
 
 * pdftotext
+
+as well as optionally uses <prog:pdftk> to manipulate PDF, and <prog:fmt> to
+format text. It offers some options and conveniences like page ranges, output
+file specification, whether to overwrite existing files, etc.
+
+TODO: add ocrmypdf as backend.
 
 MARKDOWN
     args => {
@@ -423,8 +444,8 @@ following command:
 
     % gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/screen -dNOPAUSE -dQUIET -dBATCH -sOutputFile=output.pdf input.pdf
 
-with support for multiple files and output files automatically named
-`INPUT.compressed.pdf`.
+This wrapper offers support for multiple files and automatically naming output
+`INPUT.compressed.pdf` by default.
 
 MARKDOWN
     args => {

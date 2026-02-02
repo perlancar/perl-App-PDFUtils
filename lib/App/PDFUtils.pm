@@ -124,7 +124,11 @@ sub add_pdf_password {
         }
         # XXX test that tempfile doesn't yet exist. but actually we can't avoid
         # race condition because qpdf is another process
-        my $tempf = "$f.tmp" . int(rand()*900_000 + 100_000);
+        (my $tempf = $f) =~ s/\.pdf$/".tmp_" . int(rand()*900_000 + 100_000) . ".pdf"/ei
+            or do {
+                $envres->add_result(412, "Cannot set temporary name for $f");
+                next FILE;
+            };
 
         my $decrypted;
         my ($stdout, $stderr);
@@ -228,7 +232,11 @@ sub remove_pdf_password {
         }
         # XXX test that tempfile doesn't yet exist. but actually we can't avoid
         # race condition because qpdf is another process
-        my $tempf = "$f.tmp" . int(rand()*900_000 + 100_000);
+        (my $tempf = $f) =~ s/\.pdf$/".tmp_" . int(rand()*900_000 + 100_000) . ".pdf"/ei
+            or do {
+                $envres->add_result(412, "Cannot set temporary name for $f");
+                next FILE;
+            };
 
         my $decrypted;
       PASSWORD:

@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use Log::ger;
 
+use File::chdir;
 use Perinci::Object;
 
 # AUTHORITY
@@ -535,6 +536,108 @@ sub compress_pdf {
     }
 
     $envres->as_struct;
+}
+
+$SPEC{pdfsplit} = {
+    v => 1.1,
+    summary => 'Split PDF into parts by pages',
+    description => <<'MARKDOWN',
+
+You can specify the number of parts and the utility will group roughly the same
+number of pages:
+
+    % pdfsplit --num-parts=5 990_pages.pdf
+    Creating 990_pages-part1of5_page001_198.pdf ...
+    Creating 990_pages-part2of5_page199_396.pdf ...
+    Creating 990_pages-part3of5_page397_594.pdf ...
+    Creating 990_pages-part4of5_page595_792.pdf ...
+    Creating 990_pages-part5of5_page596_990.pdf ...
+
+MARKDOWN
+    args => {
+        %argspec0_file,
+        %argspecopt_overwrite,
+        num_parts => {
+            summary => 'Specify number of parts',
+            schema => 'posint*',
+        },
+        num_pages_per_part => {
+            summary => 'Specify number of pages per part',
+            schema => 'posint*',
+        },
+    },
+    args_rels => {
+        req_one => [qw/num_parts num_pages_per_part/],
+    },
+    deps => {
+        prog => 'pdftk',
+    },
+};
+sub pdfsplit {
+    require Cwd;
+    require File::Temp;
+    require IPC::System::Options;
+    require List::MoreUtils;
+    require List::NSect;
+    require Number::Format::FitWidth;
+
+    my %args = @_;
+    my $file = $args{file};
+    defined($file) or return [400, "Please specify input file"];
+    my $abs_file = Cwd::abs_path($file);
+
+    my ($file_prefix) = $file =~ /(.+)\.(?:pdf)\z/i
+        or return [400, "Input file must end with .pdf"];
+
+    my $tempdir = File::Temp::tempdir(CLEANUP => 1);
+
+    my $num_pages;
+    my @page_pdf;
+    {
+        local $CWD = $tempdir;
+        IPC::System::Options::system({log=>1, die=>1}, "pdftk", $abs_file, "burst");
+        @page_pdf = glob("*.pdf");
+        $num_pages = scalar(@page_pdf);
+    }
+
+    my ($num_parts, $num_pages_per_part, @parts_pdf);
+    if (defined $args{num_parts}) {
+        $num_parts = $args{num_parts};
+        if ($num_parts > $num_pages) {
+            log_warn "Reducing number of parts from %d to %d because there are just that number of pages", $num_parts, $num_pages;
+            $num_parts = $num_pages;
+        }
+        @parts_pdf = List::NSect::nsect($num_parts, @page_pdf);
+    } else {
+        $num_pages_per_part = $args{num_pages_per_part};
+        $num_parts = int($num_pages / $num_pages_per_part);
+        return [412, "Please choose a smaller num_pages_per_part (currently: $args{num_pages_per_part}) because number of pages is just $num_pages"]
+            unless $num_parts >= 1;
+        my $iter = List::MoreUtils::natatime($num_pages_per_part, @page_pdf);
+        while (my @part_pdf = $iter->()) {
+            push @parts_pdf, \@part_pdf;
+        }
+    }
+
+    return [304, "There will be just one part"] unless $num_parts > 1;
+
+    my $page_num = 1;
+    for my $part (1 .. scalar(@parts_pdf)) {
+        my $part_file = sprintf(
+            "%s-part%sof%d_page%s_%s.pdf",
+            $file_prefix,
+            Number::Format::FitWidth::format_fitwidth({zero_prefix=>1, max=>$num_parts}, $part),
+            scalar(@parts_pdf),
+            Number::Format::FitWidth::format_fitwidth({zero_prefix=>1, max=>$num_pages}, $page_num),
+            Number::Format::FitWidth::format_fitwidth({zero_prefix=>1, max=>$num_pages}, $page_num + $#{ $parts_pdf[$part-1] }),
+        );
+        log_info "Creating part %d of %d: %s ...",
+            $part, scalar(@parts_pdf), $part_file;
+        IPC::System::Options::system({log=>1, die=>1}, "pdftk", (map { "$tempdir/$_" } @{ $parts_pdf[$part-1] }), "cat", "output", $part_file);
+        $page_num += @{ $parts_pdf[$part-1] };
+    }
+
+    [200];
 }
 
 1;

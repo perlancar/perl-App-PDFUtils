@@ -560,12 +560,30 @@ MARKDOWN
         num_parts => {
             summary => 'Specify number of parts',
             schema => 'posint*',
+            cmdline_aliases => {n=>{}},
         },
         num_pages_per_part => {
             summary => 'Specify number of pages per part',
             schema => 'posint*',
+            cmdline_aliases => {p=>{}},
         },
     },
+    examples => [
+        {
+            summary => 'Split a PDF file into 5 roughly equal parts (number of pages)',
+            src => '[[prog]] -n5 somefile.pdf',
+            src_plang => 'bash',
+            test => 0,
+            'x.doc.show_result' => 0,
+        },
+        {
+            summary => 'Split a PDF file into chunks of one-hundred pages each',
+            src => '[[prog]] -p100 somefile.pdf',
+            src_plang => 'bash',
+            test => 0,
+            'x.doc.show_result' => 0,
+        },
+    ],
     args_rels => {
         req_one => [qw/num_parts num_pages_per_part/],
     },
